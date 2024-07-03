@@ -4,6 +4,7 @@ import (
 	"context"
 	"grpc-go-learning/internal/database"
 	"grpc-go-learning/internal/pb"
+	"io"
 )
 
 type CategoryService struct {
@@ -64,4 +65,29 @@ func (c *CategoryService) FindCategory(ctx context.Context, in *pb.FindCategoryR
 		Name:        category.Name,
 		Description: category.Description,
 	}, nil
+}
+
+func (c *CategoryService) CreateCategoryStream(stream pb.CategoryService_CreateCategoryStreamServer) error {
+	categoriesResult := &pb.CategoryList{}
+	for {
+		category, err := stream.Recv()
+
+		if err == io.EOF {
+			return stream.SendAndClose(categoriesResult)
+		}
+		if err != nil {
+			return err
+		}
+
+		categoryResult, dbErr := c.CategoryDB.Create(category.Name, category.Description)
+		if dbErr != nil {
+			return dbErr
+		}
+		categoriesResult.Categories = append(categoriesResult.Categories, &pb.Category{
+			Id:          categoryResult.ID,
+			Name:        categoryResult.Name,
+			Description: category.Description,
+		})
+	}
+
 }
